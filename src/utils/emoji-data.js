@@ -7,6 +7,51 @@ const COLONS_REGEX = /^(?:\:([^\:]+)\:)(?:\:skin-tone-(\d)\:)?$/
 // Skin tones
 const SKINS = ['1F3FA', '1F3FB', '1F3FC', '1F3FD', '1F3FE', '1F3FF']
 
+function mergeAliases(baseAliases, localizedAliases) {
+  return Object.assign({}, baseAliases || {}, localizedAliases || {})
+}
+
+function buildAliasesById(aliases) {
+  const result = {}
+  if (!aliases) {
+    return result
+  }
+  for (let alias in aliases) {
+    if (!aliases.hasOwnProperty(alias)) {
+      continue
+    }
+    const id = aliases[alias]
+    if (!result[id]) {
+      result[id] = []
+    }
+    result[id].push(alias)
+  }
+  return result
+}
+
+function mergeKeywords() {
+  const result = []
+  const seen = new Set()
+  for (let idx = 0; idx < arguments.length; idx += 1) {
+    const list = arguments[idx]
+    if (!list || !list.length) {
+      continue
+    }
+    list.forEach((value) => {
+      if (typeof value !== 'string') {
+        return
+      }
+      const key = value.toLowerCase()
+      if (seen.has(key)) {
+        return
+      }
+      seen.add(key)
+      result.push(value)
+    })
+  }
+  return result
+}
+
 /**
  * Emoji data structure:
  * {
@@ -115,6 +160,7 @@ export class EmojiIndex {
       include,
       exclude,
       custom,
+      emojiI18n,
       recent,
       recentLength = 20,
     } = {},
@@ -127,6 +173,13 @@ export class EmojiIndex {
     this._exclude = exclude || null
     // Custom emojis
     this._custom = custom || []
+    // Emoji i18n data (localized names, keywords, aliases)
+    this._emojiI18n = emojiI18n || null
+    this._aliases = mergeAliases(
+      this._data.aliases,
+      this._emojiI18n && this._emojiI18n.aliases,
+    )
+    this._aliasesById = buildAliasesById(this._aliases)
     // Recent emojis
     // TODO: make parameter configurable
     this._recent = recent || frequently.get(recentLength)
@@ -233,8 +286,8 @@ export class EmojiIndex {
     }
 
     // 2. Check if the specified emoji is an alias
-    if (this._data.aliases.hasOwnProperty(emoji)) {
-      emoji = this._data.aliases[emoji]
+    if (this._aliases && this._aliases.hasOwnProperty(emoji)) {
+      emoji = this._aliases[emoji]
     }
 
     // 3. Check if we have the specified emoji
@@ -258,8 +311,8 @@ export class EmojiIndex {
   }
 
   emoji(emojiId) {
-    if (this._data.aliases.hasOwnProperty(emojiId)) {
-      emojiId = this._data.aliases[emojiId]
+    if (this._aliases && this._aliases.hasOwnProperty(emojiId)) {
+      emojiId = this._aliases[emojiId]
     }
     let emoji = this._emojis[emojiId]
     if (!emoji) {
@@ -277,8 +330,8 @@ export class EmojiIndex {
   }
 
   hasEmoji(emojiId) {
-    if (this._data.aliases.hasOwnProperty(emojiId)) {
-      emojiId = this._data.aliases[emojiId]
+    if (this._aliases && this._aliases.hasOwnProperty(emojiId)) {
+      emojiId = this._aliases[emojiId]
     }
     if (this._emojis[emojiId]) {
       return true
@@ -395,6 +448,31 @@ export class EmojiIndex {
   addEmoji(emojiId) {
     // We expect the correct emoji id that is present in the emojis data.
     let data = this._data.emojis[emojiId]
+    if (this._emojiI18n && this._emojiI18n.emojis && this._emojiI18n.emojis[emojiId]) {
+      const i18nEmoji = this._emojiI18n.emojis[emojiId]
+      const baseKeywords = Array.isArray(data.keywords) ? data.keywords : []
+      const localizedKeywords = Array.isArray(i18nEmoji.keywords)
+        ? i18nEmoji.keywords
+        : typeof i18nEmoji.keywords === 'string'
+          ? [i18nEmoji.keywords]
+          : []
+      const aliasKeywords = this._aliasesById?.[emojiId] || []
+      const mergedKeywords = mergeKeywords(
+        baseKeywords,
+        localizedKeywords,
+        aliasKeywords,
+        data.name ? [data.name] : [],
+        i18nEmoji.name ? [i18nEmoji.name] : [],
+      )
+      data = Object.assign({}, data, {
+        i18nName: i18nEmoji.name,
+        keywords: mergedKeywords,
+      })
+    } else if (this._aliasesById && this._aliasesById[emojiId] && this._aliasesById[emojiId].length) {
+      const baseKeywords = Array.isArray(data.keywords) ? data.keywords : []
+      const mergedKeywords = mergeKeywords(baseKeywords, this._aliasesById[emojiId])
+      data = Object.assign({}, data, { keywords: mergedKeywords })
+    }
 
     if (!this.isEmojiNeeded(data)) {
       return false
@@ -482,6 +560,7 @@ export class EmojiData {
     for (let key in this._sanitized) {
       this[key] = this._sanitized[key]
     }
+    this.i18nName = this._data.i18nName || null
     this.short_names = this._data.short_names
     this.short_name = this._data.short_names[0]
     Object.freeze(this)
@@ -502,7 +581,11 @@ export class EmojiData {
   }
 
   ariaLabel() {
-    return [this.native].concat(this.short_names).filter(Boolean).join(', ')
+    const parts = [this.native]
+    if (this.i18nName) {
+      parts.push(this.i18nName)
+    }
+    return parts.concat(this.short_names).filter(Boolean).join(', ')
   }
 }
 
@@ -526,7 +609,8 @@ export class EmojiView {
     this.cssClass = this._cssClass()
     this.cssStyle = this._cssStyle(emojiSize)
     this.content = this._content()
-    this.title = emojiTooltip === true ? emoji.short_name : null
+    this.title =
+      emojiTooltip === true ? emoji.i18nName || emoji.short_name : null
     this.ariaLabel = emoji.ariaLabel()
 
     Object.freeze(this)

@@ -46,13 +46,6 @@ module.exports = Object.assign(
 					test: /\.vue$/,
 					include: [path.resolve('src')],
 					use: ['vue-loader'],
-					options: {
-						compilerOptions: {
-							compatConfig: {
-								MODE: 2
-							}
-						}
-					}
 				},
 				{
 					test: /\.css$/,

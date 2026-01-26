@@ -33,13 +33,6 @@
       </button>
       <button
         class="tab-link"
-        :class="tabCss('q-dialog')"
-        @click="set('q-dialog')"
-      >
-        QDialog
-      </button>
-      <button
-        class="tab-link"
         :class="tabCss('selectable')"
         @click="set('selectable')"
       >
@@ -85,7 +78,6 @@
     <ExampleCustomTemplates :index="index" v-if="is('custom-templates')" />
     <ExampleFiltered :index="index" v-if="is('filtered')" />
     <ExampleI18N :index="index" v-if="is('i18n')" />
-    <ExampleQDialog :index="index" v-if="is('q-dialog')" />
     <ExampleSmallPicker :index="index" v-if="is('small-picker')" />
   </div>
 </template>
@@ -102,7 +94,6 @@ import ExampleCustomOrder from './exampleCustomOrder'
 import ExampleCustomTemplates from './exampleCustomTemplates'
 import ExampleFiltered from './exampleFiltered'
 import ExampleI18N from './exampleI18N'
-import ExampleQDialog from './exampleQDialog'
 import ExampleSmallPicker from './exampleSmallPicker'
 
 const CUSTOM_EMOJIS = [
@@ -188,7 +179,6 @@ export default {
     ExampleCustomTemplates,
     ExampleFiltered,
     ExampleI18N,
-    ExampleQDialog,
     ExampleSmallPicker,
   },
 }
